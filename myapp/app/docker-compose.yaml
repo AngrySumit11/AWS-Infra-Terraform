@@ -1,0 +1,32 @@
+version: "3"
+
+services:
+  db:
+    image: postgres:12-alpine
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data/
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=jsnow
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=app
+  app:
+    build: .
+    restart: always
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env
+    environment:
+      - DB_HOST=db
+      - DB_NAME=app
+      - DB_USERNAME=jsnow
+      - DB_PASSWORD=password123
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

@@ -1,0 +1,59 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:GetBucketVersioning",
+        "s3:PutObject",
+        "s3:PutObjectAcl",
+        "s3:PutObjectVersionAcl",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "${artifact-bucket-arn}",
+        "${artifact-bucket-arn}/*"
+      ]
+    },
+    {
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": "*",
+      "Effect": "Allow",
+      "Condition": {
+        "StringEqualsIfExists": {
+          "iam:PassedToService": [
+            "cloudformation.amazonaws.com",
+            "elasticbeanstalk.amazonaws.com",
+            "ec2.amazonaws.com",
+            "ecs-tasks.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:DescribeImages",
+        "cloudwatch:*",
+        "codebuild:BatchGetBuilds",
+        "codebuild:StartBuild",
+        "ecs:*"
+      ],
+      "Resource": "*"
+    }, 
+    {
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "*"
+        ]
+      }
+      
+  ]
+}

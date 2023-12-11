@@ -1,0 +1,50 @@
+version: 0.2
+env:
+  variables:
+    CONTAINER_NAME: course1-app
+    ECR_REPO: course1-app-dev-repo
+  parameter-store:
+    AWS_ACCOUNT_ID: ACCOUNT_ID
+    AWS_DOPPLER_SERVICE_TOKEN: DOPPLER_SERVICE_TOKEN
+phases:
+  install:
+    runtime-versions:
+      #docker: 18
+      nodejs: 14
+  pre_build:
+    commands:
+      #- apt update -y
+      - cat /etc/os-release
+      #- sudo apt-get update -y && sudo apt-get install curl -y
+      - sudo apt-get update -y && sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+      - curl -sLf --retry 3 --tlsv1.2 --proto "=https" 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' | sudo apt-key add -
+      - echo "deb https://packages.doppler.com/public/cli/deb/debian any-version main" | sudo tee /etc/apt/sources.list.d/doppler-cli.list
+      - sudo apt-get update -y && sudo apt-get install doppler -y      
+      - aws s3 cp s3://course1-course1-s3-environment-dev/course1-app/pk-APKAJCRSG5VMWQYCO7AA.pem ./pk-APKAJCRSG5VMWQYCO7AA.pem
+      - aws s3 cp s3://course1-course1-s3-environment-dev/course1-app/brightcove-playback-jwt-private-key.pem ./brightcove-playback-jwt-private-key.pem
+      #- aws s3 cp s3://course1-course1-s3-environment-dev/course1-app/serviceAccountKey.json ./serviceAccountKey.json
+      #- aws s3 cp s3://course1-course1-s3-environment-dev/course1-app/env-dev ./.env
+      - docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=course1_test_db -d postgres:14
+      - npm install
+      - doppler run --token=$AWS_DOPPLER_SERVICE_TOKEN npm run test
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-app-dev-repo
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...   
+      - docker build -t course1-app-dev-repo .
+      - docker tag course1-app-dev-repo:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-app-dev-repo:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-app-dev-repo:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - doppler run --token=$AWS_DOPPLER_SERVICE_TOKEN npm run migrate
+      - echo Writing image definitions file...
+      - echo $CONTAINER_NAME
+      - echo $ECR_REPO
+      - printf '[{"name":"%s","imageUri":"%s.dkr.ecr.%s.amazonaws.com/%s:latest"}]' "$CONTAINER_NAME" "$AWS_ACCOUNT_ID" "$AWS_DEFAULT_REGION" "$ECR_REPO"> imagedefinitions.json
+      - cat imagedefinitions.json
+artifacts:
+    files: imagedefinitions.json

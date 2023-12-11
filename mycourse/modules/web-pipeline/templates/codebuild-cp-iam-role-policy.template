@@ -1,0 +1,38 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Resource": [
+          "*"
+        ],
+        "Action": [
+          "cloudwatch:*",
+          "logs:CreateLogGroup",
+          "logs:PutLogEvents",
+          "logs:CreateLogStream"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:*"
+        ],
+        "Resource": [
+          "${artifact-bucket-arn}",
+          "${artifact-bucket-arn}/*",
+          "${environment-bucket-arn}",
+          "${environment-bucket-arn}/*"
+        ]
+      },
+      {
+      "Action": [
+        "codebuild:BatchGetBuilds",
+        "codebuild:StartBuild",
+        "ecr:*"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    }
+    ]
+  }

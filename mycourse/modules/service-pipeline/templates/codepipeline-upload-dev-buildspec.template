@@ -1,0 +1,33 @@
+version: 0.2
+env:
+  variables:
+    CONTAINER_NAME: course1-upload
+    ECR_REPO: course1-upload-dev-repo
+  parameter-store:
+    AWS_ACCOUNT_ID: ACCOUNT_ID
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+  pre_build:
+    commands:
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      - docker build -t course1-upload-dev-repo .
+      - docker tag course1-upload-dev-repo:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-upload-dev-repo:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-upload-dev-repo:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - echo Writing image definitions file...
+      - echo $CONTAINER_NAME
+      - echo $ECR_REPO
+      - printf '[{"name":"%s","imageUri":"%s.dkr.ecr.%s.amazonaws.com/%s:latest"}]' "$CONTAINER_NAME" "$AWS_ACCOUNT_ID" "$AWS_DEFAULT_REGION" "$ECR_REPO"> imagedefinitions.json
+      - echo imagedefinitions.json
+artifacts:
+    files: imagedefinitions.json

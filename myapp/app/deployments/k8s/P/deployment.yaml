@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-deployment
+  labels:
+    app: app
+    tags.datadoghq.com/env: prod
+    tags.datadoghq.com/service: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+        tags.datadoghq.com/env: prod
+        tags.datadoghq.com/service: app
+        admission.datadoghq.com/enabled: "true"
+        admission.datadoghq.com/config.mode: "socket"
+      annotations:
+        admission.datadoghq.com/python-lib.version: v1.10.1
+    spec:
+      containers:
+      - name: app-service
+        imagePullPolicy: Always
+        image: accountid.dkr.ecr.us-west-2.amazonaws.com/app:{{GIT_SHA}}
+        resources:
+            limits:
+              memory: 256Mi
+              cpu: "500m"
+        ports:
+        - containerPort: 8000
+        env:
+        - name: APP_ENV
+          value: prod
+        - name: DD_LOGS_INJECTION
+          value: "true"
+        envFrom:
+          - secretRef:
+              name: app-doppler-token
+      imagePullSecrets:
+        - name: regcred
+

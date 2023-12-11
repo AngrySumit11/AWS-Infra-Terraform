@@ -1,0 +1,30 @@
+name: Terragrunt action
+description: This action will be used for running Terragrunt commands. This will allow us to automate infra provisioning directly from the GitHub actions. 
+
+
+inputs:
+  tf_version:
+    required: false
+    default: 0.14.4
+    description: This input value specifies the version of Terraform that needs to be used
+  tg_version:
+    required: false
+    default: 0.43.2
+    description: This input value specifies the version of Terragrunt that needs to be used
+  
+
+runs: 
+  using: "composite"
+  steps: 
+    - name: Set Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+          terraform_version: ${{ inputs.tf_version }}
+
+    - name: Install Terragrunt
+      shell: bash
+      run: |
+          terraform version
+          sudo wget -q -O /bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ inputs.tg_version }}/terragrunt_linux_amd64"
+          sudo chmod +x /bin/terragrunt
+          terragrunt -v

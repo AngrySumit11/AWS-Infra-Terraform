@@ -1,0 +1,137 @@
+name: Pipeline for Deploy
+
+on:
+  push:
+    paths-ignore:
+      - "README.md"
+    branches:
+      - release
+      - master
+      - develop
+      - build
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_DEFAULT_OUTPUT: json
+  GIT_SHA: ${{ github.sha }}
+  ECR_REPOSITORY_BASE: app
+  EKS_CLUSTER_BASE: "app-ENV-apps"
+  EKS_CLUSTER_READ_BASE: "app-ENV-apse1-apps"
+  EKS_NON_PROD_CLUSTER_BASE: 'app-dev-apps'
+  EKS_PROD_CLUSTER_BASE: 'app-prod-apps'
+  EKS_NON_PROD_CLUSTER_READ_BASE: 'app-dev-apse1-apps'
+  EKS_PROD_CLUSTER_READ_BASE: 'app-prod-apse1-apps'
+
+# This is our common deployment pipeline. It triggers build and deploy for 4 brances.
+
+# Based on the name of the branch we're deploying to, we set the K8S env and cluster accordingly
+# develop -> dev
+# build -> test
+# release -> stage
+# master -> prod, chop off the -github.ref_name suffix from the ECR_REPOSITORY
+
+jobs:
+  build-push-to-ecr:
+    name: Building the Image, and push to ECR
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ job.status }}
+      ecr-repository: ${{ steps.build-image.outputs.ecr-repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - id: setup-k8s-deployment-vars
+        uses: app-global/workflows/.github/actions/setup-k8s-deployment-vars@v2
+        with:
+          deployment-branch: ${{ github.ref_name }}
+          eks-cluster-base: ${{ env.EKS_CLUSTER_BASE }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ steps.setup-k8s-deployment-vars.outputs.eks-region }}
+          role-to-assume: ${{ steps.setup-k8s-deployment-vars.outputs.aws-role }}
+          role-session-name: GitActionDeployment
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ format('{0}{1}', env.ECR_REPOSITORY_BASE, steps.setup-k8s-deployment-vars.outputs.ecr-repository-suffix ) }}
+          IMAGE_TAG: ${{ github.sha }}
+          K8S_DEPLOYMENT_ENV: ${{ steps.setup-k8s-deployment-vars.outputs.k8s-deployment-env }}
+        run: |
+          echo "::set-output name=ecr-repository::$ECR_REPOSITORY"
+
+          if [[ $K8S_DEPLOYMENT_ENV == "prod" && -f Dockerfile.prod ]]; then
+            DOCKERFILE=Dockerfile.prod
+          else
+            DOCKERFILE=Dockerfile
+          fi
+
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f $DOCKERFILE .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:latest"
+
+      - name: Configure kubectl to point to eks dev cluster
+        if: ${{ steps.setup-k8s-deployment-vars.outputs.k8s-deployment-env != 'prod' }}
+        env:
+          K8S_DEPLOYMENT_ENV: ${{ steps.setup-k8s-deployment-vars.outputs.k8s-deployment-env }}
+          EKS_CLUSTER: ${{ steps.setup-k8s-deployment-vars.outputs.eks-cluster-name }}
+          EKS_REGION: ${{ steps.setup-k8s-deployment-vars.outputs.eks-region }}
+        run: |
+          aws eks update-kubeconfig --region $EKS_REGION --name $EKS_NON_PROD_CLUSTER_BASE
+      - name: Configure kubectl to point to eks prod cluster
+        if: ${{ steps.setup-k8s-deployment-vars.outputs.k8s-deployment-env == 'prod' }}
+        env:
+          K8S_DEPLOYMENT_ENV: ${{ steps.setup-k8s-deployment-vars.outputs.k8s-deployment-env }}
+          EKS_CLUSTER: ${{ steps.setup-k8s-deployment-vars.outputs.eks-cluster-name }}
+          EKS_REGION: ${{ steps.setup-k8s-deployment-vars.outputs.eks-region }}
+        run: |
+          aws eks update-kubeconfig --region $EKS_REGION --name $EKS_PROD_CLUSTER_BASE
+      - name: Deploy the new image
+        env:
+          K8S_DEPLOYMENT_ENV: ${{ steps.setup-k8s-deployment-vars.outputs.k8s-deployment-env }}
+        run: |
+          sed -i -e 's|{{GIT_SHA}}|'$GIT_SHA'|g' deployments/k8s/${{ env.K8S_DEPLOYMENT_ENV }}/app-deployment.yaml
+          cat deployments/k8s/${{ env.K8S_DEPLOYMENT_ENV }}/app-deployment.yaml
+          kubectl apply -f deployments/k8s/${{ env.K8S_DEPLOYMENT_ENV }}/app-deployment.yaml
+          kubectl apply -f deployments/k8s/${{ env.K8S_DEPLOYMENT_ENV }}/app-service-clusterip.yaml
+          kubectl apply -f deployments/k8s/${{ env.K8S_DEPLOYMENT_ENV }}/app-ingress.yaml
+          kubectl apply -f deployments/k8s/hpa.yaml
+          kubectl get pods -o wide
+
+      - name: Slack Notification for Success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: ${{ steps.setup-k8s-deployment-vars.outputs.slack-channel }}
+          SLACK_COLOR: ""
+          SLACK_ICON: https://github.com/rtCamp.png?size=48
+          SLACK_MESSAGE: "Deployment for ${{ steps.build-image.outputs.ecr-repository }} success :rocket:"
+          SLACK_TITLE: Deployment for ${{ steps.build-image.outputs.ecr-repository }} success
+          SLACK_USERNAME: gitactions-pipeline
+          SLACK_WEBHOOK: https://hooks.slack.com/services/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
+      - name: Slack Notification for Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: ${{ steps.setup-k8s-deployment-vars.outputs.slack-channel }}
+          SLACK_COLOR: "#3278BD"
+          SLACK_ICON: https://github.com/rtCamp.png?size=48
+          SLACK_MESSAGE: "Deployment for ${{ steps.build-image.outputs.ecr-repository }} failed :x:"
+          SLACK_TITLE: Deployment for ${{ steps.build-image.outputs.ecr-repository }} failed
+          SLACK_USERNAME: gitactions-pipeline
+          SLACK_WEBHOOK: https://hooks.slack.com/services/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

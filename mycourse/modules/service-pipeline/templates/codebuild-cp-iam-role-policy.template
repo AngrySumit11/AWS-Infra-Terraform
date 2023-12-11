@@ -1,0 +1,76 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Resource": [
+        "*"
+      ],
+      "Action": [
+        "cloudwatch:*",
+        "logs:CreateLogGroup",
+        "logs:PutLogEvents",
+        "logs:CreateLogStream"
+      ]
+    },
+    {
+      "Action": [
+         "ssm:GetParameters",
+         "ssm:DescribeParameters"
+      ],
+            "Resource": "*",
+            "Effect": "Allow"
+        },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:*"
+      ],
+      "Resource": [
+        "${artifact-bucket-arn}",
+        "${artifact-bucket-arn}/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:*"
+      ],
+      "Resource": [
+        "${environment-bucket-arn}",
+        "${environment-bucket-arn}/*"
+      ]
+    },
+    {
+      "Action": [
+        "codebuild:BatchGetBuilds",
+        "codebuild:StartBuild",
+        "ecr:*"
+      ],
+      "Resource": "*",
+      "Effect": "Allow"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateNetworkInterface",
+        "ec2:DescribeDhcpOptions",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DeleteNetworkInterface",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeVpcs",
+        "ec2:CreateNetworkInterfacePermission"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBClusterSnapshot",
+        "rds:DescribeDBSnapshots"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

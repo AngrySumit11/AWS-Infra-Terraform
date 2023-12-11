@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /master/$1
+  creationTimestamp: null
+  name: app-dev-ingress
+  namespace: dev
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          service:
+            name: app-service-clusterip
+            port:
+              number: 8000
+        path: /dev/master/(.*)
+        pathType: ImplementationSpecific
+status:
+  loadBalancer: {}

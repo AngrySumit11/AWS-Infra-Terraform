@@ -1,0 +1,201 @@
+version: 0.2
+env:
+  variables:
+    CONTAINER_NAME: course1-persistence
+    ECR_REPO: course1-persistence-test-repo
+  parameter-store:
+    AWS_ACCOUNT_ID: ACCOUNT_ID
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+  pre_build:
+    commands:
+      #- go test
+      - aws s3 cp s3://course1-course1-s3-environment-test/course1-persistence/env-test ./.env
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...   
+      - docker build -t course1-persistence-test-repo .
+      - docker tag tcourse1-persistence-test-repo:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-persistence-test-repo:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-persistence-test-repo:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - echo Writing image definitions file...
+      - echo $CONTAINER_NAME
+      - echo $ECR_REPO
+      - printf '[{"name":"%s","imageUri":"%s.dkr.ecr.%s.amazonaws.com/%s:latest"}]' "$CONTAINER_NAME" "$AWS_ACCOUNT_ID" "$AWS_DEFAULT_REGION" "$ECR_REPO" > imagedefinitions.json
+      - echo imagedefinitions.json
+artifacts:
+    files: imagedefinitions.json
+
+
+
+
+
+
+
+
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 10
+    commands:
+      - cd $CODEBUILD_SRC_DIR
+      - mkdir ../source_artif
+      - git checkout test
+      - yes | cp -r . ../source_artif/
+      - cd ../source_artif/
+      - zip -r upload.zip .
+      - aws s3 cp upload.zip s3://course1-course1-codepipline-synctos3-test/course1persistence-service.zip
+
+
+
+
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 10
+    commands:
+      - cd $CODEBUILD_SRC_DIR
+      - mkdir ../source_artif
+      - git checkout test
+      - yes | cp -r . ../source_artif/
+      - cd ../source_artif/
+      - zip -r upload.zip .
+      - aws s3 cp upload.zip s3://course1-course1-codepipline-synctos3-test/integration-test.zip
+
+
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 10
+    commands:
+      - cd $CODEBUILD_SRC_DIR
+      - mkdir ../source_artif
+      - git checkout test
+      - yes | cp -r . ../source_artif/
+      - cd ../source_artif/
+      - zip -r upload.zip .
+      - aws s3 cp upload.zip s3://course1-course1-codepipline-synctos3-test/course1-notifications-test.zip
+
+
+
+
+version: 0.2
+env:
+  variables:
+    CONTAINER_NAME: course1-notification
+    ECR_REPO: course1-notification-test-repo
+  parameter-store:
+    AWS_ACCOUNT_ID: ACCOUNT_ID
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+  pre_build:
+    commands:
+      - aws s3 cp s3://course1-course1-s3-environment-test/course1-notifications/env-test ./.env
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      #- tag=$(git describe --tags)
+      #- mkdir ${tag}
+      - docker build -t course1-notification-test-repo .
+      - docker tag course1-notification-test-repo:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-notification-test-repo:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-notification-test-repo:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - echo Writing image definitions file...
+      - echo $CONTAINER_NAME
+      - echo $ECR_REPO
+      - printf '[{"name":"%s","imageUri":"%s.dkr.ecr.%s.amazonaws.com/%s:latest"}]' "$CONTAINER_NAME" "$AWS_ACCOUNT_ID" "$AWS_DEFAULT_REGION" "$ECR_REPO"> imagedefinitions.json
+      - echo imagedefinitions.json
+artifacts:
+    files: imagedefinitions.json
+
+
+
+
+
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 10
+    commands:
+      #- apt update
+      #- apt-get install zip
+      - cd $CODEBUILD_SRC_DIR
+      - mkdir ../source_artif
+      - git checkout test
+      - yes | cp -r . ../source_artif/
+      - cd ../source_artif/
+      - zip -r upload.zip .
+      - aws s3 cp upload.zip s3://course1-course1-codepipline-synctos3-test/course1-app.zip
+
+
+
+
+
+version: 0.2
+env:
+  variables:
+    CONTAINER_NAME: course1-app
+    ECR_REPO: course1-app-test-repo
+  parameter-store:
+    AWS_ACCOUNT_ID: ACCOUNT_ID
+phases:
+  install:
+    runtime-versions:
+      docker: 18
+      nodejs: 10
+  pre_build:
+    commands:
+      #- apt update -y
+      - aws s3 cp s3://course1-course1-s3-environment-test/env-test ./.env
+      - aws s3 cp s3://course1-course1-s3-environment-test/pk-APKAIIIILWOVKS6UTQHQ.pem ./pk-APKAIIIILWOVKS6UTQHQ.pem
+      - aws s3 cp s3://course1-course1-s3-environment-test/course1-app/serviceAccountKey.json ./serviceAccountKey.json
+      - aws s3 cp s3://course1-course1-s3-environment-test/course1-app/brightcove-playback-jwt-private-key.pem ./brightcove-playback-jwt-private-key.pem
+      - npm install
+      - echo Logging in to Amazon ECR...
+      - $(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION)
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      #- tag=$(git describe --tags)
+      #- mkdir ${tag}
+      - docker build -t course1-app-test-repo .
+      - docker tag course1-app-test-repo:latest $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-app-test-repo:latest
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/course1-app-test-repo:latest
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      #- echo stopping application till db migration is finished...
+      #- aws ecs update-service --cluster  test-course1AppECSCluster --service test-course1-ecs-stack-ECSService-17MNZ62O0KOV6 --region ap-northeast-1 --desired-count 0
+      #- DB_SNAPSHOT=test-course1-db-cluster-snapshot-build-$(date +%Y%m%d%H%M)
+      #- echo $DB_SNAPSHOT
+      #- aws rds create-db-cluster-snapshot --db-cluster-identifier test-course1-pgdb-stack-rdsdbcluster-12zwv2y0crjdz --region ap-northeast-1 --db-cluster-snapshot-identifier $DB_SNAPSHOT
+      - npm run migrate
+      #- aws rds wait db-snapshot-completed --db-snapshot-identifier $DB_SNAPSHOT
+      #- aws ecs update-service --cluster  test-course1AppECSCluster --service test-course1-ecs-stack-ECSService-17MNZ62O0KOV6 --region ap-northeast-1 --desired-count 2
+      - echo Writing image definitions file...
+      - printf '[{"name":"%s","imageUri":"%s.dkr.ecr.%s.amazonaws.com/%s:latest"}]' "$CONTAINER_NAME" "$AWS_ACCOUNT_ID" "$AWS_DEFAULT_REGION" "$ECR_REPO"> imagedefinitions.json
+      - echo imagedefinitions.json
+artifacts:
+    files: imagedefinitions.json

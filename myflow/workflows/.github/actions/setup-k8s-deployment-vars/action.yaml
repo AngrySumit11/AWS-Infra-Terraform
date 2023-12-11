@@ -1,0 +1,116 @@
+name: Setup some variables for EKS deployments
+
+inputs:
+  deployment-branch:
+    required: true
+    type: string
+    description: The branch being deployed. This should be github.ref_name.
+  eks-cluster-base:
+    required: true
+    type: string
+    description: A string of the eks cluster name with the string ENV located somewhere. ENV will get substituted out for the actual eks environment.
+  kube-version:
+    required: false
+    type: string
+    default: "1.21"
+    description: The version of kubernetes being used.
+outputs:
+  ecr-repository-suffix:
+    value: ${{ steps.setup-deployment-vars.outputs.ecr-repository-suffix }}
+  k8s-deployment-env:
+    value: ${{ steps.setup-deployment-vars.outputs.k8s-deployment-env }}
+  eks-cluster-name:
+    value: ${{ steps.setup-deployment-vars.outputs.eks-cluster-name }}
+  eks-account-id:
+    value: ${{ steps.setup-deployment-vars.outputs.eks-account-id }}
+  eks-region:
+    value: ${{ steps.setup-deployment-vars.outputs.eks-region }}
+  slack-channel:
+    value: ${{ steps.setup-deployment-vars.outputs.slack-channel }}
+  aws-role:
+    value: ${{ steps.setup-deployment-vars.outputs.aws-role }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: setup-deployment-vars
+      shell: bash
+      env:
+        EKS_CLUSTER_BASE: ${{ inputs.eks-cluster-base }}
+        AWS_ACCT_course1_PROD: 
+        AWS_ACCT_course1_NON_PROD: 
+        AWS_ACCT_course1_PROD: 
+        AWS_ACCT_course1_NON_PROD: 
+      run: |
+        case ${{ inputs.deployment-branch }} in
+          build)
+            K8S_DEPLOYMENT_ENV=test
+            echo "::set-output name=ecr-repository-suffix::-build"
+            ;;
+          release)
+            K8S_DEPLOYMENT_ENV=stage
+            echo "::set-output name=ecr-repository-suffix::-release"
+            ;;
+          master)
+            K8S_DEPLOYMENT_ENV=prod
+            # No suffix for production
+            ;;
+          develop | *)
+            K8S_DEPLOYMENT_ENV=dev
+            echo "::set-output name=ecr-repository-suffix::-develop"
+            ;;
+        esac
+        echo "K8S_DEPLOYMENT_ENV=$K8S_DEPLOYMENT_ENV"
+        echo "::set-output name=k8s-deployment-env::$K8S_DEPLOYMENT_ENV"
+
+        EKS_CLUSTER_NAME=${EKS_CLUSTER_BASE/ENV/$K8S_DEPLOYMENT_ENV}
+        echo "EKS_CLUSTER_NAME=$EKS_CLUSTER_NAME"
+        echo "::set-output name=eks-cluster-name::${EKS_CLUSTER_NAME}"
+
+        if [[ $EKS_CLUSTER_NAME =~ "course1-prod-" ]]; then
+          EKS_ACCOUNT_ID=${{ env.AWS_ACCT_course1_PROD }}
+          SLACK_CHANNEL=dt-global-tech-cicd
+        elif [[ $EKS_CLUSTER_NAME =~ "course1-" ]]; then
+          EKS_ACCOUNT_ID=${{ env.AWS_ACCT_course1_NON_PROD }}
+          SLACK_CHANNEL=dt-global-tech-cicd       
+        elif [[ $EKS_CLUSTER_NAME =~ "sc-course1-prod-" ]]; then
+          EKS_ACCOUNT_ID=${{ env.AWS_ACCT_course1_PROD }}
+          SLACK_CHANNEL=dt-course1-tech-cicd 
+        elif [[ $EKS_CLUSTER_NAME =~ "sc-course1-" ]]; then
+          EKS_ACCOUNT_ID=${{ env.AWS_ACCT_course1_NON_PROD }}
+          SLACK_CHANNEL=dt-course1-tech-cicd 
+        else 
+          EKS_ACCOUNT_ID=${{ env.AWS_ACCT_course1_NON_PROD }}
+          SLACK_CHANNEL=dt-global-tech-cicd 
+        fi
+
+        echo "SLACK_CHANNEL=$SLACK_CHANNEL"
+        echo "EKS_ACCOUNT_ID=$EKS_ACCOUNT_ID"
+        echo "::set-output name=eks-account-id::$EKS_ACCOUNT_ID"
+        echo "::set-output name=slack-channel::$SLACK_CHANNEL"
+
+        if [[ $EKS_CLUSTER_NAME =~ "sc-course1" || $EKS_CLUSTER_NAME =~ "apse1" ]]; then
+          echo "::set-output name=eks-region::ap-southeast-1"
+        else
+          echo "::set-output name=eks-region::us-west-2"
+        fi
+
+        AWS_ROLE=arn:aws:iam::$EKS_ACCOUNT_ID:role/git-actions
+        echo "AWS_ROLE=$AWS_ROLE"
+        echo "::set-output name=aws-role::$AWS_ROLE"
+
+    - id: install-kubectl
+      shell: bash
+      env:
+        K8S_VERSION: ${{ inputs.kube-version }}
+      run: |
+
+        if [[ $K8S_VERSION == "1.18" ]]; then
+          KUBE_CLIENT_VERSION="v1.18.20"
+        elif [[ $K8S_VERSION == "1.23" ]]; then
+          KUBE_CLIENT_VERSION="v1.23.4"
+        else
+          KUBE_CLIENT_VERSION="v1.21.2"
+        fi
+        sudo curl -LO https://dl.k8s.io/release/$KUBE_CLIENT_VERSION/bin/linux/amd64/kubectl
+        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl

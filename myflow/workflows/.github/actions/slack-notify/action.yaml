@@ -1,0 +1,64 @@
+name: Makes a slack channel notification
+
+inputs:
+  success:
+    required: true
+    type: boolean
+  repo:
+    required: false
+    type: string
+    default: ${{ github.repository }}
+  channel:
+    required: false
+    type: string
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - id: setup
+      shell: bash
+      env:
+        SUCCESS: ${{ inputs.success }}
+        REPO: ${{ inputs.repo }}
+        CHANNEL: ${{ inputs.channel }}
+      run: |
+        SLACK_USERNAME=gitactions-pipeline
+        if [[ $CHANNEL == "dt-course1-tech-cicd" || $REPO =~ "course1-" ]]; then
+          SLACK_WEBHOOK=TODO
+          SLACK_CHANNEL=dt-course1-tech-cicd
+        elif [[ $CHANNEL == "dt-global-tech-cicd" || $REPO =~ "course1-global" ]]; then
+          SLACK_WEBHOOK=https://hooks.slack.com/services/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
+          SLACK_CHANNEL=dt-global-tech-cicd
+        else
+          SLACK_WEBHOOK=https://hooks.slack.com/services/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
+          SLACK_CHANNEL=dt-global-tech-cicd        
+        fi
+
+        if [[ $SUCCESS == "true" ]]; then
+          SLACK_TITLE="Deployment for $REPO success"
+          SLACK_MESSAGE="$SLACK_TITLE :rocket:"
+          SLACK_COLOR=""
+        else
+          SLACK_TITLE="Deployment for $REPO failed"
+          SLACK_MESSAGE="$SLACK_TITLE :x:"
+          SLACK_COLOR="#3278BD"
+        fi
+
+        echo "::set-output name=slack-username::$SLACK_USERNAME"
+        echo "::set-output name=slack-webhook::$SLACK_WEBHOOK"
+        echo "::set-output name=slack-title::$SLACK_TITLE"
+        echo "::set-output name=slack-message::$SLACK_MESSAGE"
+        echo "::set-output name=slack-color::$SLACK_COLOR"
+        echo "::set-output name=slack-channel::$SLACK_CHANNEL"
+
+    - name: Slack Notification
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_CHANNEL: ${{ steps.setup.outputs.slack-channel }}
+        SLACK_COLOR: ${{ steps.setup.outputs.slack-color }}
+        SLACK_ICON: https://github.com/rtCamp.png?size=48
+        SLACK_MESSAGE: ${{ steps.setup.outputs.slack-message }}
+        SLACK_TITLE: ${{ steps.setup.outputs.slack-title }}
+        SLACK_USERNAME: ${{ steps.setup.outputs.slack-username }}
+        SLACK_WEBHOOK: ${{ steps.setup.outputs.slack-webhook }}

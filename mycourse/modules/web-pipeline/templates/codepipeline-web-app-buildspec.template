@@ -1,0 +1,20 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 10
+  build:
+    commands:
+      - aws s3 cp s3://course1-course1-s3-environment-$env/course1-admin-ui/$web_app_env.js config/env/
+      - mkdir .well-known
+      - aws s3 cp s3://course1-course1-s3-environment-$env/course1-admin-ui/assetlinks.json .well-known/
+      - mkdir config/ios
+      - aws s3 cp s3://course1-course1-s3-environment-$env/course1-admin-ui/apple-app-site-association config/ios/
+      - npm install && npm run build:$web_app_env
+artifacts:
+  files:
+    - '**/*'
+  base-directory: dist
+cache:
+  paths:
+    - 'node_modules/**/*'

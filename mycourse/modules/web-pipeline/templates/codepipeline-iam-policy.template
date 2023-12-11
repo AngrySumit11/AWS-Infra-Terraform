@@ -1,0 +1,63 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": [
+        "${artifact-bucket-arn}",
+        "${artifact-bucket-arn}/*"
+      ]
+    },
+    {
+      "Action": [
+        "iam:PassRole"
+      ],
+      "Resource": "*",
+      "Effect": "Allow",
+      "Condition": {
+        "StringEqualsIfExists": {
+          "iam:PassedToService": [
+            "cloudformation.amazonaws.com",
+            "elasticbeanstalk.amazonaws.com",
+            "ec2.amazonaws.com",
+            "ecs-tasks.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:DescribeImages",
+        "cloudwatch:*",
+        "codebuild:BatchGetBuilds",
+        "codebuild:StartBuild",
+        "ecs:*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": [
+        "${deployment-bucket-arn}",
+        "${deployment-bucket-arn}/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "${invalidate_lambda_id}"
+    },
+        {
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "*"
+        ]
+      }
+  ]
+}
